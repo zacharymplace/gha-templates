@@ -1,0 +1,16 @@
+
+# --- Standard ignores ---
+# Logs & outputs
+# OS cruft
+# Python
+# Virtual envs
+*.csv
+*.egg-info/
+*.log
+*.py[cod]
+.DS_Store
+.env/
+.venv/
+Thumbs.db
+__pycache__/
+out/
