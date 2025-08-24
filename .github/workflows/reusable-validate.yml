@@ -1,0 +1,25 @@
+name: reusable-validate
+
+on:
+  workflow_call:
+    inputs:
+      schema_job:
+        required: true
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install jsonschema
+      - name: Run validator
+        run: |
+          if [ -f validators/ci_validate.py ]; then
+            python validators/ci_validate.py --only ${{ inputs.schema_job }}
+          else
+            echo "[warn] no validators/ci_validate.py found in this repo"
+          fi
