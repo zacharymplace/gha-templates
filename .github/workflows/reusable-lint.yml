@@ -1,0 +1,22 @@
+name: reusable-lint
+
+on:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # If a Python toolchain exists, run it; otherwise this is a no-op.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dev deps (best-effort)
+        run: |
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt || true; fi
+          pip install pre-commit || true
+      - name: Run pre-commit (best-effort)
+        run: |
+          pre-commit run --all-files || true
