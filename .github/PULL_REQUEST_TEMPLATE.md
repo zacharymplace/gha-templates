@@ -2,5 +2,6 @@
 -
 
 ## Checklist
-- [ ] Scope is minimal
-- [ ] Tests/linters pass
+- [ ] Minimal scope
+- [ ] Lint/format checks pass (if configured)
+- [ ] Docs/README updated (if needed)
