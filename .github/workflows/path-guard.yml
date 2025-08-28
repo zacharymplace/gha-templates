@@ -1,24 +1,36 @@
 name: Path Guard
-
 on:
-  pull_request:
-  push:
-    branches: [ main ]
+  workflow_call:
+    inputs:
+      extra_patterns:
+        description: "Additional ERE alternation, e.g. foo|bar/baz"
+        required: false
+        type: string
+        default: ""
+      extra_excludes:
+        description: "Extra grep excludes, one per line (e.g. --exclude-dir=fixtures)"
+        required: false
+        type: string
+        default: ""
 
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Fail if hardcoded local paths are present
+      - name: Scan
         shell: bash
+        env:
+          EXTRA_PATTERNS: ${{ inputs.extra_patterns }}
+          EXTRA_EXCLUDES: ${{ inputs.extra_excludes }}
         run: |
           set -euo pipefail
-          echo "Scanning for hardcoded local Windows paths..."
-          # patterns to block
-          PATTERN='(C:/Users/Zacha/code/|C:\\\\Users\\\\Zacha\\\\code\\\\|Users/Zacha/code/)'
-          # excludes (binaries/outputs/caches)
+          DEFAULT='(C:/Users/Zacha/code/|C:\\\\Users\\\\Zacha\\\\code\\\\|Users/Zacha/code/)'
+          PATTERN="$DEFAULT"
+          if [[ -n "$EXTRA_PATTERNS" ]]; then
+            PATTERN="(${DEFAULT}|${EXTRA_PATTERNS})"
+          fi
+
           EXCLUDES=(
             --exclude-dir=.git --exclude-dir=.venv --exclude-dir=node_modules
             --exclude-dir=.ruff_cache --exclude-dir=.pytest_cache
@@ -27,10 +39,18 @@ jobs:
             --exclude='*.svg' --exclude='*.ico' --exclude='*.pdf' --exclude='*.zip'
             --exclude='*.mp4' --exclude='*.mov' --exclude='*.parquet'
           )
-          # grep returns 0 on match; we invert and fail with a nice message
-          if grep -RInE "$PATTERN" . "${EXCLUDES[@]}" ; then
+          if [[ -n "$EXTRA_EXCLUDES" ]]; then
+            while IFS= read -r line; do
+              [[ -z "$line" ]] && continue
+              EXCLUDES+=("$line")
+            done <<< "$EXTRA_EXCLUDES"
+          fi
+
+          echo "Pattern: $PATTERN"
+          echo "Excludes: ${EXCLUDES[*]}"
+
+          if grep -RInE "$PATTERN" . "${EXCLUDES[@]}"; then
             echo "::error::Found hardcoded local paths. Replace with relative repo paths."
             exit 1
-          else
-            echo "OK: no hardcoded local paths found."
           fi
+          echo "OK: no hardcoded local paths found."
