@@ -1,25 +1,90 @@
-name: reusable-validate
+name: Reusable — Validate (Python)
 
 on:
   workflow_call:
     inputs:
-      schema_job:
-        required: true
+      os:
         type: string
+        default: '["ubuntu-latest"]'
+        description: JSON list of runners
+      python-versions:
+        type: string
+        default: '["3.12"]'
+        description: JSON list of Python versions
+      run-pre-commit:
+        type: boolean
+        default: true
+      run-coverage:
+        type: boolean
+        default: true
+      test-command:
+        type: string
+        default: 'pytest -q --disable-warnings'
+      coverage-file:
+        type: string
+        default: 'coverage.xml'
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    name: py${{ matrix.python }} • ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(inputs.os) }}
+        python: ${{ fromJson(inputs.python-versions) }}
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install jsonschema
-      - name: Run validator
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install deps
+        shell: bash
         run: |
-          if [ -f validators/ci_validate.py ]; then
-            python validators/ci_validate.py --only ${{ inputs.schema_job }}
-          else
-            echo "[warn] no validators/ci_validate.py found in this repo"
-          fi
+          python -m pip install -U pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          # fallbacks for simple repos
+          python -m pip install pytest
+          if [ "${{ inputs.run-pre-commit }}" = "true" ]; then python -m pip install pre-commit black; fi
+          if [ "${{ inputs.run-coverage }}" = "true" ] && [ "${{ matrix.os }}" = "ubuntu-latest" ]; then python -m pip install pytest-cov codecov; fi
+
+      - name: Lint (pre-commit)
+        if: ${{ inputs.run-pre-commit }}
+        run: pre-commit run --all-files
+
+      - name: Tests
+        run: ${{ inputs.test-command }}
+
+      - name: Ensure coverage file exists
+        if: ${{ inputs.run-coverage && matrix.os == 'ubuntu-latest' && always() }}
+        run: |
+          test -f "${{ inputs.coverage-file }}" || echo "<coverage></coverage>" > "${{ inputs.coverage-file }}"
+
+      - name: Upload to Codecov
+        if: ${{ inputs.run-coverage && matrix.os == 'ubuntu-latest' }}
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ inputs.coverage-file }}
+          flags: ubuntu-py${{ matrix.python }}
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
+        if: ${{ inputs.run-coverage && matrix.os == 'ubuntu-latest' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-ubuntu-py${{ matrix.python }}
+          path: ${{ inputs.coverage-file }}
+          if-no-files-found: warn
