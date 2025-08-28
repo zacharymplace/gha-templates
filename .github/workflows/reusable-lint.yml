@@ -6,20 +6,15 @@ on:
       python-version:
         type: string
         default: "3.11"
-        description: Python used to run pre-commit hooks
       run-black:
         type: boolean
         default: true
-        description: Run "black ." before pre-commit, then skip black in the main run
       run-doctoc:
         type: boolean
         default: true
-        description: Run doctoc fixer before pre-commit, then skip doctoc in the main run
       skip-hooks:
         type: string
-        default: ""
-        description: Comma-separated extra hooks to skip (e.g. "ruff")
-    # no secrets required
+        default: ""   # extra hooks to SKIP, e.g. "ruff"
 
 jobs:
   lint:
@@ -27,11 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      # Use pip cache only if a deps file exists
+      - name: Set up Python (cached)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') != '' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
           cache: pip
+          cache-dependency-path: |
+            **/requirements*.txt
+            **/pyproject.toml
+
+      - name: Set up Python (no cache)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') == '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
 
       - name: Cache pre-commit envs
         uses: actions/cache@v4
@@ -61,7 +67,6 @@ jobs:
           if [ "${{ inputs.run-doctoc }}" = "true" ]; then SKIP="${SKIP}doctoc,"; fi
           if [ -n "${{ inputs.skip-hooks }}" ]; then SKIP="${SKIP}${{ inputs.skip-hooks }},"; fi
           SKIP="${SKIP%%,}"
-          echo "SKIP=$SKIP" >> $GITHUB_ENV
           echo "skip=$SKIP" >> $GITHUB_OUTPUT
 
       - name: Lint (pre-commit)
