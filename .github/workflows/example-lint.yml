@@ -1,0 +1,11 @@
+name: Example — Lint (calls reusable)
+
+on: { workflow_dispatch: {} }
+
+jobs:
+  lint:
+    uses: zacharymplace/gha-templates/.github/workflows/reusable-lint.yml@main
+    with:
+      python-version: "3.12"
+      run-black: true
+      run-doctoc: true
