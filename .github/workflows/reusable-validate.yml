@@ -5,12 +5,10 @@ on:
     inputs:
       os:
         type: string
-        default: '["ubuntu-latest"]'
-        description: JSON list of runners
+        default: '["ubuntu-latest"]'   # JSON list
       python-versions:
         type: string
-        default: '["3.12"]'
-        description: JSON list of Python versions
+        default: '["3.12"]'            # JSON list
       run-pre-commit:
         type: boolean
         default: true
@@ -40,14 +38,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      # Cached setup only when deps file exists
+      - name: Set up Python (cached)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') != '' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+            **/requirements*.txt
+            **/pyproject.toml
+
+      - name: Set up Python (no cache)
+        if: ${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') == '' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
 
       - name: Install deps
         shell: bash
@@ -55,7 +61,6 @@ jobs:
           python -m pip install -U pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          # fallbacks for simple repos
           python -m pip install pytest
           if [ "${{ inputs.run-pre-commit }}" = "true" ]; then python -m pip install pre-commit black; fi
           if [ "${{ inputs.run-coverage }}" = "true" ] && [ "${{ matrix.os }}" = "ubuntu-latest" ]; then python -m pip install pytest-cov codecov; fi
